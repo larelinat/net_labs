@@ -1,4 +1,13 @@
 {
   "name": "labs",
-  "packageManager": "yarn@4.5.1"
+  "packageManager": "yarn@4.5.1",
+  "devDependencies": {
+    "@types/node": "^22.9.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.6.3"
+  },
+  "scripts": {
+    "start:lab2-server": "ts-node lab2/server.ts",
+    "start:lab2-client": "ts-node lab2/client.ts"
+  }
 }
