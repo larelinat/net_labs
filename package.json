@@ -2,14 +2,27 @@
   "name": "labs",
   "packageManager": "yarn@4.5.1",
   "devDependencies": {
+    "@eslint/js": "^9.14.0",
     "@types/node": "^22.9.0",
+    "@types/readline-sync": "^1",
+    "eslint": "^9.14.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-prettier": "^5.2.1",
+    "globals": "^15.12.0",
+    "prettier": "^3.3.3",
     "ts-node": "^10.9.2",
-    "typescript": "^5.6.3"
+    "typescript": "^5.6.3",
+    "typescript-eslint": "^8.13.0"
   },
   "scripts": {
-    "start:lab2-server": "ts-node lab2/server.ts",
-    "start:lab2-client": "ts-node lab2/client.ts",
-    "start:lab3-server": "ts-node lab3/server.ts",
-    "start:lab3-client": "ts-node lab3/client.ts"
+    "start:lab2-server": "ts-node src/lab2/server.ts",
+    "start:lab2-client": "ts-node src/lab2/client.ts",
+    "start:lab3-server": "ts-node src/lab3/server.ts",
+    "start:lab3-client": "ts-node src/lab3/client.ts",
+    "lint": "eslint src/**/*.ts",
+    "lint:fix": "eslint src/**/*.ts --fix"
+  },
+  "dependencies": {
+    "readline-sync": "^1.4.10"
   }
 }
