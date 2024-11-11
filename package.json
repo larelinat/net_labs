@@ -16,6 +16,7 @@
     "typescript-eslint": "^8.13.0"
   },
   "scripts": {
+    "start:lab1": "ts-node src/lab1/index.ts",
     "start:lab2-server": "ts-node src/lab2/server.ts",
     "start:lab2-client": "ts-node src/lab2/client.ts",
     "start:lab3-server": "ts-node src/lab3/server.ts",
@@ -27,6 +28,7 @@
   },
   "dependencies": {
     "dns-packet": "^5.6.1",
+    "nodejs-traceroute": "^2.0.1",
     "readline-sync": "^1.4.10"
   }
 }
