@@ -88,6 +88,6 @@ scanUdpPorts(target, startPort, endPort)
   .then((r) => {
     printOpenedPorts(r);
   })
-  .catch((e) => {
+  .catch((e: unknown) => {
     console.error(e);
   });
