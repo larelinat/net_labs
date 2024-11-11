@@ -3,6 +3,7 @@
   "packageManager": "yarn@4.5.1",
   "devDependencies": {
     "@eslint/js": "^9.14.0",
+    "@types/dns-packet": "^5",
     "@types/node": "^22.9.0",
     "@types/readline-sync": "^1",
     "eslint": "^9.14.0",
@@ -19,10 +20,13 @@
     "start:lab2-client": "ts-node src/lab2/client.ts",
     "start:lab3-server": "ts-node src/lab3/server.ts",
     "start:lab3-client": "ts-node src/lab3/client.ts",
+    "start:lab4-tcp": "ts-node src/lab4/tcp.ts",
+    "start:lab4-udp": "ts-node src/lab4/udp.ts",
     "lint": "eslint src/**/*.ts",
     "lint:fix": "eslint src/**/*.ts --fix"
   },
   "dependencies": {
+    "dns-packet": "^5.6.1",
     "readline-sync": "^1.4.10"
   }
 }
