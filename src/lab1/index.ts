@@ -1,27 +1,32 @@
-import { execSync } from "child_process";
-import os from "os";
+import { execSync, spawn } from "child_process";
+import { networkInterfaces } from "os";
 import dns from "node:dns";
 import * as net from "node:net";
-import { Traceroute } from "nodejs-traceroute/lib/traceroute";
-import type { Hop } from "nodejs-traceroute/lib/process";
+import * as process from "node:process";
 
-type NetworkSettings = {
-  name: string;
-  address: string;
-  gateway: string;
-  dns: string[];
+const getGatewayAddress = (): string => {
+  try {
+    let command = "";
+    if (process.platform === "win32") {
+      command = 'route print | findstr /R /C:"0.0.0.0"';
+    } else if (process.platform === "darwin") {
+      command = "netstat -rn | grep 'default'";
+    } else if (process.platform === "linux") {
+      command = "ip route | grep default";
+    } else {
+      throw new Error("Unsupported OS");
+    }
+
+    const output = execSync(command).toString().trim();
+    return output.split(/\s+/)[1];
+  } catch (err) {
+    console.error("Ошибка при получении адреса шлюза:", err);
+    return "Неизвестно";
+  }
 };
 
-const formatNetworkSettings = (settings: NetworkSettings[]) => {
-  return settings
-    .map((setting) => {
-      return `Имя интерфейса: ${setting.name}\nАдрес: ${setting.address}\nШлюз: ${setting.gateway}\nDNS: ${setting.dns.join(", ")}\n`;
-    })
-    .join("\n");
-};
-
-const getNetworkSettings = (): NetworkSettings[] => {
-  const interfaces = os.networkInterfaces();
+const getNetworkSettings = () => {
+  const interfaces = networkInterfaces();
   const settings = [];
 
   for (const name of Object.keys(interfaces)) {
@@ -32,11 +37,7 @@ const getNetworkSettings = (): NetworkSettings[] => {
           settings.push({
             name,
             address: net.address,
-            gateway: execSync(
-              `route -n get default | grep 'gateway' | awk '{print $2}'`,
-            )
-              .toString()
-              .trim(),
+            gateway: getGatewayAddress(),
             dns: dns.getServers(),
           });
         }
@@ -44,24 +45,44 @@ const getNetworkSettings = (): NetworkSettings[] => {
     }
   }
 
-  return settings;
+  return settings
+    .map((setting) => {
+      return `Интерфейс: ${setting.name}\nIP адрес: ${setting.address}\nШлюз: ${setting.gateway}\nDNS сервера: ${setting.dns.join(
+        ", ",
+      )}`;
+    })
+    .join("\n\n");
 };
 
-const formatTcpPorts = (ports: string[]) => {
+const getUsedTcpPorts = (): string => {
+  let command = "";
+
+  if (process.platform === "win32") {
+    command = 'netstat -an | find "LISTEN"';
+  } else if (process.platform === "darwin" || process.platform === "linux") {
+    command = "lsof -iTCP -sTCP:LISTEN -n -P";
+  } else {
+    throw new Error("Unsupported OS");
+  }
+
+  const ports = Array.from(
+    new Set(
+      execSync(command)
+        .toString()
+        .trim()
+        .split("\n")
+        .map((line) => {
+          if (process.platform === "win32") {
+            return line.split(/\s+/).pop()?.split(":").pop();
+          } else {
+            return line.split(/\s+/)[8]?.split(":").pop();
+          }
+        })
+        .filter((port): port is string => port !== undefined),
+    ),
+  );
+
   return `Используемые TCP порты:\n${ports.join(", ")}`;
-};
-
-const getUsedTcpPorts = (): string[] => {
-  const ports = execSync(
-    "lsof -iTCP -sTCP:LISTEN -n -P | awk 'NR>1 {print $9}'",
-  )
-    .toString()
-    .trim()
-    .split("\n")
-    .map((port) => port.split(":").pop())
-    .filter((port): port is string => port !== undefined);
-
-  return Array.from(new Set(ports));
 };
 
 const checkServerAvailability = (host: string) => {
@@ -87,37 +108,43 @@ const checkServerAvailability = (host: string) => {
   });
 };
 
-const traceRoute = (host: string): Promise<void> => {
+const traceRoute = (host: string): Promise<string[]> => {
   return new Promise((resolve, reject) => {
-    try {
-      const tracer = new Traceroute();
-      const hops: Hop[] = [];
+    let command = "";
+    let args: string[] = [];
 
-      tracer
-        .on("hop", (hop: Hop) => {
-          hops.push(hop);
-          const rtt1 = hop.rtt1 ? hop.rtt1 : "N/A";
-          const rtt2 = hop.rtt2 !== undefined ? `| ${hop.rtt2}` : "";
-          const rtt3 = hop.rtt3 !== undefined ? `| ${hop.rtt3}` : "";
-          console.log(`Hop ${hop.hop}: ${hop.ip} | ${rtt1} ${rtt2} ${rtt3}`);
-        })
-        .on("close", () => {
-          resolve();
-        })
-        .on("error", (err: Error) => {
-          reject(
-            new Error(`Ошибка при выполнении трассировки: ${err.message}`),
-          );
-        });
-
-      tracer.trace(host);
-    } catch (err) {
-      if (err instanceof Error) {
-        reject(new Error(`Ошибка при выполнении трассировки: ${err.message}`));
-      } else {
-        reject(new Error("Неизвестная ошибка при выполнении трассировки"));
-      }
+    if (process.platform === "win32") {
+      command = "tracert";
+      args = ["-d", "-h", "10", "-w", "1000", host];
+    } else if (process.platform === "darwin" || process.platform === "linux") {
+      command = "traceroute";
+      args = ["-m", "10", "-w", "1", host];
+    } else {
+      reject(new Error("Unsupported OS"));
+      return;
     }
+
+    const proc = spawn(command, args);
+    const output: string[] = [];
+
+    proc.stdout.on("data", (data: Buffer) => {
+      output.push(data.toString());
+    });
+
+    proc.stderr.on("data", (data: Buffer) => {
+      const errorLine = data.toString().trim();
+      if (errorLine && !errorLine.startsWith("traceroute: Warning")) {
+        console.error(`stderr: ${errorLine}`);
+      }
+    });
+
+    proc.on("close", (code: number | null) => {
+      if (code === 0) {
+        resolve(output);
+      } else {
+        reject(new Error(`Процесс завершился с кодом ${code ?? "неизвестно"}`));
+      }
+    });
   });
 };
 
@@ -127,32 +154,61 @@ const getDnsServers = (domain: string) => {
       if (err) {
         reject(err);
       } else {
-        resolve(addresses);
+        resolve(addresses.join(", "));
       }
     });
   });
 };
 
-(async () => {
+const printDivider = () => {
   console.log("-".repeat(35));
-  const networkSettings = getNetworkSettings();
-  console.log("Сетевые настройки:");
-  console.log(formatNetworkSettings(networkSettings));
-  console.log("-".repeat(35));
-  const usedTcpPorts = getUsedTcpPorts();
-  console.log(formatTcpPorts(usedTcpPorts));
-  console.log("-".repeat(35));
+};
+
+const formatRoute = (route: string[]): string[] => {
+  const formatted: string[] = [];
+  let currentHop = "";
+
+  route.forEach((line) => {
+    const match = /^\s*(\d+)\s+(.*)$/.exec(line);
+    if (match) {
+      if (currentHop) {
+        formatted.push(currentHop);
+      }
+      currentHop = `${match[1]} ${match[2]}`;
+    } else {
+      currentHop += ` ${line.trim()}`;
+    }
+  });
+
+  if (currentHop) {
+    formatted.push(currentHop);
+  }
+
+  return formatted;
+};
+
+const main = async () => {
   const servers = ["www.vvsu.ru", "www.mail.ru"];
+  printDivider();
+  console.log(getNetworkSettings());
+  printDivider();
+  console.log(getUsedTcpPorts());
+  printDivider();
+  const dnsServers = await getDnsServers("mail.ru");
+  console.log("DNS сервера для mail.ru:", dnsServers);
+  printDivider();
+
   for (const server of servers) {
     const isAvailable = await checkServerAvailability(server);
     console.log(`Сервер ${server} доступен:`, isAvailable);
     if (isAvailable === true) {
-      await traceRoute(server);
       console.log(`Маршрут до сервера ${server}:\n`);
+      const route = await traceRoute(server);
+      const formattedRoute = formatRoute(route);
+      console.log(formattedRoute.join("\n"));
       console.log("-".repeat(35));
     }
   }
+};
 
-  const dnsServers = await getDnsServers("mail.ru");
-  console.log("DNS сервера для mail.ru:", dnsServers);
-})();
+void main();
