@@ -1,5 +1,5 @@
 import readlineSync from "readline-sync";
-
+// функция для валидации ввода порта, указываем допустимые минимум и максимум, просим ввести диапазон портов пока не введут корректно
 export const validatePortInput = (
   message: string,
   min: number,
@@ -15,7 +15,7 @@ export const validatePortInput = (
   } while (port < min || port >= max);
   return port;
 };
-
+// функция для вывода открытых портов
 export const printOpenedPorts = (ports: number[]) => {
   console.log("-".repeat(35));
   console.log("Opened ports:");
